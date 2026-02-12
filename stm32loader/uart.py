@@ -37,6 +37,7 @@ class SerialConnection:
     def __init__(self, serial_port, baud_rate=115200, parity="E"):
         """Construct a SerialConnection (not yet connected)."""
         self.serial_port = serial_port
+        self.uart_backend=True
         self.baud_rate = baud_rate
         self.parity = parity
 
@@ -91,6 +92,9 @@ class SerialConnection:
 
     def read(self, *args, **kwargs):
         """Read the given amount of bytes from the serial connection."""
+        # discard 'subframe' named argument which is specific to I2C backend
+        kwargs.pop('subframe', None)
+        
         return self.serial_connection.read(*args, **kwargs)
 
     def enable_reset(self, enable=True):

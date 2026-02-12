@@ -34,6 +34,7 @@ from stm32loader import args
 from stm32loader import hexfile
 from stm32loader import bootloader
 from stm32loader.uart import SerialConnection
+from stm32loader.i2c_ft4222 import I2cFt4222Connection
 
 
 class Stm32Loader:
@@ -61,9 +62,12 @@ class Stm32Loader:
 
     def connect(self):
         """Connect to the bootloader UART over an RS-232 serial port."""
-        serial_connection = SerialConnection(
-            self.configuration.port, self.configuration.baud, self.configuration.parity
-        )
+        if self.configuration.port.startswith("FT4222_I2C"):
+            serial_connection = I2cFt4222Connection( self.configuration.port )
+        else:
+            serial_connection = SerialConnection(
+                self.configuration.port, self.configuration.baud, self.configuration.parity
+            )
         self.debug(
             10,
             "Open port %(port)s, baud %(baud)d"
@@ -80,6 +84,10 @@ class Stm32Loader:
                 "  --port /dev/ttyS0\n"
                 "  --port /dev/ttyUSB0\n"
                 "  --port /dev/tty.usbserial-ftCYPMYJ\n",
+                "  --port FT4222_I2C\n",
+                "  --port FT4222_I2C:369\n",
+                "  --port FT4222_I2C:369:0x4E\n",
+                "  --port FT4222_I2C:?\n",
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -97,16 +105,17 @@ class Stm32Loader:
             device_family=self.configuration.family,
         )
 
-        try:
-            print("Activating bootloader (select UART)")
-            self.stm32.reset_from_system_memory()
-        except bootloader.CommandError:
-            print(
-                "Can't init into bootloader. Ensure that BOOT0 is enabled and reset the device.",
-                file=sys.stderr,
-            )
-            self.stm32.reset_from_flash()
-            sys.exit(1)
+        if hasattr(serial_connection, "uart_backend"):
+            try:
+                print("Activating bootloader (select UART)")
+                self.stm32.reset_from_system_memory()
+            except bootloader.CommandError:
+                print(
+                    "Can't init into bootloader. Ensure that BOOT0 is enabled and reset the device.",
+                    file=sys.stderr,
+                )
+                self.stm32.reset_from_flash()
+                sys.exit(1)
 
     def perform_commands(self):
         """Run all operations as defined by the configuration."""

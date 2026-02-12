@@ -364,10 +364,15 @@ class Stm32Bootloader:
 
     def write(self, *data):
         """Write the given data to the MCU."""
+        # concatenate all data into a single bytes object
+        # (mandatory to generate a single I2C frame, and not a problem for UART backend)
+        d = b''
         for data_bytes in data:
             if isinstance(data_bytes, int):
-                data_bytes = struct.pack("B", data_bytes)
-            self.connection.write(data_bytes)
+                d += struct.pack("B", data_bytes)
+            else:
+                d += data_bytes
+        self.connection.write(d)
 
     def write_and_ack(self, message, *data):
         """Write data to the MCU and wait until it replies with ACK."""
@@ -383,6 +388,10 @@ class Stm32Bootloader:
 
     def reset_from_system_memory(self):
         """Reset the MCU with boot0 enabled to enter the bootloader."""
+        
+        if not hasattr(self.connection, "uart_backend"):
+            return
+            
         self._enable_boot0(True)
         self._reset()
 
@@ -433,10 +442,11 @@ class Stm32Bootloader:
     def get(self):
         """Return the bootloader version and remember supported commands."""
         self.command(self.Command.GET, "Get")
-        length = bytearray(self.connection.read())[0]
-        version = bytearray(self.connection.read())[0]
+        # nb: 'subframe' gives indications to I2C backend to generate start/stop conditions
+        length = bytearray(self.connection.read(1, subframe='first'))[0]
+        version = bytearray(self.connection.read(1, subframe='middle'))[0]
         self.debug(10, "    Bootloader version: " + hex(version))
-        data = bytearray(self.connection.read(length))
+        data = bytearray(self.connection.read(length, subframe='last'))
         if self.Command.EXTENDED_ERASE in data:
             self.extended_erase = True
         self.debug(10, "    Available commands: " + ", ".join(hex(b) for b in data))
@@ -463,8 +473,9 @@ class Stm32Bootloader:
     def get_id(self):
         """Send the 'Get ID' command and return the device (model) ID."""
         self.command(self.Command.GET_ID, "Get ID")
-        length = bytearray(self.connection.read())[0]
-        id_data = bytearray(self.connection.read(length + 1))
+        # nb: 'subframe' gives indications to I2C backend to generate start/stop conditions
+        length = bytearray(self.connection.read(1, subframe='first'))[0]
+        id_data = bytearray(self.connection.read(length + 1, subframe='last'))
         self._wait_for_ack("0x02 end")
         _device_id = reduce(lambda x, y: x * 0x100 + y, id_data)
         return _device_id

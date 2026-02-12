@@ -108,7 +108,7 @@ def parse_arguments(arguments):
         action="store",
         type=str,  # morally required=True
         default=default_port,
-        help=("Serial port" + ("." if default_port else " (default: $STM32LOADER_SERIAL_PORT).")),
+        help=("Serial or FT4222_I2C port" + ("." if default_port else " (default: $STM32LOADER_SERIAL_PORT).")),
     )
 
     parser.add_argument(
